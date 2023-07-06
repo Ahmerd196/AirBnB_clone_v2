@@ -1,72 +1,62 @@
-file { '/tmp/':
-  ensure => 'directory',
+# Script that configures Nginx server with some folders and files
+
+exec {'update':
+  provider => shell,
+  command  => 'sudo apt-get -y update',
+  before   => Exec['install Nginx'],
 }
 
-file { '/tmp/holberton':
-  ensure  => 'file',
-  content => "<html>\n  <head>\n  </head>\n  <body>\n    Holberton School\n  </body>\n</html>\n",
+exec {'install Nginx':
+  provider => shell,
+  command  => 'sudo apt-get -y install nginx',
+  before   => Exec['start Nginx'],
 }
 
-file { '/etc/puppet/':
-  ensure => 'directory',
+exec {'start Nginx':
+  provider => shell,
+  command  => 'sudo service nginx start',
+  before   => Exec['create first directory'],
 }
 
-file { '/etc/puppet/holberton/':
-  ensure => 'directory',
+exec {'create first directory':
+  provider => shell,
+  command  => 'sudo mkdir -p /data/web_static/releases/test/',
+  before   => Exec['create second directory'],
 }
 
-file { '/etc/puppet/holberton/holberton':
-  ensure  => 'file',
-  content => "User-agent: *\nDisallow: /",
+exec {'create second directory':
+  provider => shell,
+  command  => 'sudo mkdir -p /data/web_static/shared/',
+  before   => Exec['content into html'],
 }
 
-package { 'nginx':
-  ensure => 'installed',
+exec {'content into html':
+  provider => shell,
+  command  => 'echo "Holberton School" | sudo tee /data/web_static/releases/test/index.html',
+  before   => Exec['symbolic link'],
 }
 
-service { 'nginx':
-  ensure    => 'running',
-  enable    => true,
-  hasstatus => true,
-  require   => Package['nginx'],
+exec {'symbolic link':
+  provider => shell,
+  command  => 'sudo ln -sf /data/web_static/releases/test/ /data/web_static/current',
+  before   => Exec['put location'],
 }
 
-file { '/etc/nginx/sites-available/default':
-  ensure  => 'file',
-  content => "server {\n\tlisten 80 default_server;\n\tlisten [::]:80 default_server;\n\n\tlocation /hbnb_static {\n\t\talias /data/web_static/current/;\n\t\tautoindex off;\n\t}\n\n\tlocation /redirect_me {\n\t\treturn 301 http://mydomain.tech/hbnb_static/index.html;\n\t}\n\n\terror_page 404 /custom_404.html;\n\tlocation = /custom_404.html {\n\t\troot /usr/share/nginx/html;\n\t\tinternal;\n\t}\n}",
-  require => Package['nginx'],
-  notify  => Service['nginx'],
+exec {'put location':
+  provider => shell,
+  command  => 'sudo sed -i \'38i\\tlocation /hbnb_static/ {\n\t\talias /data/web_static/current/;\n\t\tautoindex off;\n\t}\n\' /etc/nginx/sites-available/default',
+  before   => Exec['restart Nginx'],
 }
 
-file { '/data/':
-  ensure => 'directory',
+exec {'restart Nginx':
+  provider => shell,
+  command  => 'sudo service nginx restart',
+  before   => File['/data/']
 }
 
-file { '/data/web_static/':
-  ensure => 'directory',
+file {'/data/':
+  ensure  => directory,
+  owner   => 'ubuntu',
+  group   => 'ubuntu',
+  recurse => true,
 }
-
-file { '/data/web_static/releases/':
-  ensure => 'directory',
-}
-
-file { '/data/web_static/shared/':
-  ensure => 'directory',
-}
-
-file { '/data/web_static/releases/test/':
-  ensure => 'directory',
-}
-
-file { '/data/web_static/current':
-  ensure  => 'link',
-  target  => '/data/web_static/releases/test',
-  require => File['/data/web_static/releases/test/'],
-}
-
-file { '/data/web_static/releases/test/index.html':
-  ensure  => 'file',
-  content => "/tmp/holberton",
-  require => File['/tmp/holberton'],
-}
-
